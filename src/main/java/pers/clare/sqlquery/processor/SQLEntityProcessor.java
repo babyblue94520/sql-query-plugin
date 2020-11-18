@@ -2,8 +2,8 @@ package pers.clare.sqlquery.processor;
 
 import com.sun.tools.javac.api.JavacTrees;
 import com.sun.tools.javac.code.Flags;
-import com.sun.tools.javac.code.Symbol;
 import com.sun.tools.javac.code.Symtab;
+import com.sun.tools.javac.code.TypeTag;
 import com.sun.tools.javac.processing.JavacProcessingEnvironment;
 import com.sun.tools.javac.tree.JCTree;
 import com.sun.tools.javac.tree.TreeMaker;
@@ -12,7 +12,6 @@ import com.sun.tools.javac.util.Context;
 import com.sun.tools.javac.util.List;
 import com.sun.tools.javac.util.Names;
 import pers.clare.sqlquery.annotation.SQLEntityTest;
-import sun.tools.java.Type;
 
 import javax.annotation.processing.*;
 import javax.lang.model.SourceVersion;
@@ -22,15 +21,10 @@ import javax.tools.Diagnostic;
 import javax.tools.JavaFileObject;
 import java.io.IOException;
 import java.io.PrintWriter;
-import java.lang.reflect.Field;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import javax.persistence.*;
-
 
 @SupportedAnnotationTypes("pers.clare.sqlquery.annotation.SQLEntityTest")
-@SupportedSourceVersion(SourceVersion.RELEASE_8)
 public class SQLEntityProcessor extends AbstractProcessor {
     Messager messager;
     JavacTrees trees;
@@ -39,7 +33,12 @@ public class SQLEntityProcessor extends AbstractProcessor {
     Symtab symtab;
 
     @Override
-    public final synchronized void init(ProcessingEnvironment processingEnv) {
+    public SourceVersion getSupportedSourceVersion() {
+        return SourceVersion.latest();
+    }
+
+    @Override
+    public void init(ProcessingEnvironment processingEnv) {
         super.init(processingEnv);
         this.messager = processingEnv.getMessager();
         this.trees = JavacTrees.instance(processingEnv);
@@ -47,11 +46,16 @@ public class SQLEntityProcessor extends AbstractProcessor {
         this.treeMaker = TreeMaker.instance(context);
         this.names = Names.instance(context);
         this.symtab = Symtab.instance(context);
-        System.out.println(names);
     }
 
     @Override
     public boolean process(Set<? extends TypeElement> annotations, RoundEnvironment roundEnv) {
+        this.test(roundEnv);
+
+        return true;
+    }
+
+    private void test(RoundEnvironment roundEnv){
         messager.printMessage(Diagnostic.Kind.NOTE, "SQLEntityTest process begin!");
         try {
             Set<? extends Element> sqlEntityTests = roundEnv.getElementsAnnotatedWith(SQLEntityTest.class);
@@ -67,24 +71,24 @@ public class SQLEntityProcessor extends AbstractProcessor {
                     @Override
                     public void visitClassDef(JCTree.JCClassDecl jcClass) {
                         try {
+                            super.visitClassDef(jcClass);
                             System.out.println(jcClass.name);
                             System.out.println(jcClass.defs.size());
-
-                            jcClass.defs = jcClass.defs.append(
-                                    treeMaker.VarDef(
-                                            treeMaker.Modifiers(Flags.PUBLIC )
-                                            , names.fromString("test")
-                                            , treeMaker.Type(symtab.stringType)
-                                            , treeMaker.Literal("test")
-                                    )
+                            JCTree.JCVariableDecl test = treeMaker.VarDef(
+                                    treeMaker.Modifiers(Flags.PRIVATE )
+                                    , names.fromString("aaa")
+//                                    , treeMaker.Type(symtab.stringType)
+                                    , treeMaker.TypeIdent(TypeTag.INT)
+//                                    , treeMaker.Literal("11")
+                                    ,null
                             );
-
-                            JCTree.JCStatement ret = treeMaker.Return(treeMaker.Ident(names.fromString("_test")));
+                            jcClass.defs = jcClass.defs.append(test);
+                            JCTree.JCStatement ret = treeMaker.Return(treeMaker.Ident(names.fromString("id")));
                             jcClass.defs = jcClass.defs.append(
                                     treeMaker.MethodDef(
                                             treeMaker.Modifiers(Flags.PUBLIC )
-                                            , names.fromString("getTest")
-                                            , treeMaker.Type(symtab.stringType)
+                                            , names.fromString("getId")
+                                            , treeMaker.Type(symtab.longType)
                                             ,  List.nil()
                                             , List.nil()
                                             , List.nil()
@@ -92,24 +96,23 @@ public class SQLEntityProcessor extends AbstractProcessor {
                                             , null
                                     )
                             );
-                            System.out.println(jcClass.defs.size());
-
-                            for (JCTree jcTree : jcClass.defs) {
-
-                                System.out.println(jcTree);
-                                if (jcTree instanceof JCTree.JCVariableDecl) {
-                                    System.out.println("------------------");
-                                    JCTree.JCVariableDecl variable = (JCTree.JCVariableDecl) jcTree;
-                                    System.out.println(variable.name + " " + variable.vartype);
-//                                    if (variable.sym != null) {
-//                                        System.out.println("A " + variable.sym.getAnnotation(Id.class));
-//                                        System.out.println("A " + variable.sym.getAnnotation(Column.class));
-//                                    }
-                                } else {
-//                            System.out.println("not "+jcTree.getClass());
-                                }
-
-                            }
+//                            System.out.println(jcClass.defs.size());
+//                            for (JCTree jcTree : jcClass.defs) {
+//
+//                                System.out.println(jcTree);
+//                                if (jcTree instanceof JCTree.JCVariableDecl) {
+//                                    System.out.println("------------------");
+//                                    JCTree.JCVariableDecl variable = (JCTree.JCVariableDecl) jcTree;
+//                                    System.out.println(variable.name + " " + variable.vartype);
+////                                    if (variable.sym != null) {
+////                                        System.out.println("A " + variable.sym.getAnnotation(Id.class));
+////                                        System.out.println("A " + variable.sym.getAnnotation(Column.class));
+////                                    }
+//                                } else {
+////                            System.out.println("not "+jcTree.getClass());
+//                                }
+//
+//                            }
                             System.out.println(" end ");
 
                         } catch (Exception e) {
@@ -122,7 +125,6 @@ public class SQLEntityProcessor extends AbstractProcessor {
             e.printStackTrace();
         }
         messager.printMessage(Diagnostic.Kind.NOTE, "SQLEntityTest process end!");
-        return true;
     }
 
     private void writeBuilderFile(
